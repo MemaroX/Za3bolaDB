@@ -4,7 +4,8 @@ import os
 class Za3bolaEngine:
     def __init__(self, db_path='za3bola.aof'):
         self.db_path = db_path
-        self.data = {}
+        # Data structure: {'table_name': {'key': 'value'}}
+        self.data = {'default': {}}
         self._recover_from_aof()
 
     def _recover_from_aof(self):
@@ -20,48 +21,70 @@ class Za3bolaEngine:
                     if not line: continue
                     
                     try:
-                        parts = line.split(' ', 2)
-                        cmd = parts[0]
+                        # Try parsing new format: CMD TABLE KEY VALUE
+                        parts = line.split(' ', 3)
                         
-                        if cmd == 'SET':
-                            key = parts[1]
-                            val_json = parts[2]
-                            self.data[key] = json.loads(val_json)
-                        elif cmd == 'DEL':
-                            key = parts[1]
-                            if key in self.data:
-                                del self.data[key]
+                        if len(parts) == 4 and parts[0] == 'SET':
+                            # New Format: SET table key value
+                            cmd, table, key, val_json = parts
+                            if table not in self.data: self.data[table] = {}
+                            self.data[table][key] = json.loads(val_json)
+                            
+                        elif len(parts) == 3 and parts[0] == 'DEL':
+                            # New Format: DEL table key
+                            cmd, table, key = parts
+                            if table in self.data and key in self.data[table]:
+                                del self.data[table][key]
+
+                        # Legacy Format Handling (Backward Compatibility)
+                        elif len(parts) == 3 and parts[0] == 'SET':
+                            # Old Format: SET key value (assume 'default')
+                            cmd, key, val_json = parts
+                            self.data['default'][key] = json.loads(val_json)
+                        
+                        elif len(parts) == 2 and parts[0] == 'DEL':
+                             # Old Format: DEL key
+                            cmd, key = parts
+                            if key in self.data['default']:
+                                del self.data['default'][key]
+
                     except Exception:
                         continue # Skip corrupted lines
         except Exception as e:
             print(f"[!] Error recovering AOF: {e}")
         print("[*] Recovery complete.")
 
-    def _append_aof(self, cmd, key, value=None):
+    def _append_aof(self, cmd, table, key, value=None):
         """Appends a command to the log file."""
         try:
             with open(self.db_path, 'a', encoding='utf-8') as f:
                 if cmd == 'SET':
-                    # Serialize value to JSON to ensure it fits on one line and handles special chars
                     json_val = json.dumps(value)
-                    f.write(f"SET {key} {json_val}\n")
+                    f.write(f"SET {table} {key} {json_val}\n")
                 elif cmd == 'DEL':
-                    f.write(f"DEL {key}\n")
+                    f.write(f"DEL {table} {key}\n")
         except Exception as e:
             print(f"[!] Error writing to AOF: {e}")
 
-    def set(self, key, value):
-        self.data[key] = value
-        self._append_aof('SET', key, value)
+    def set(self, table, key, value):
+        if table not in self.data:
+            self.data[table] = {}
+        self.data[table][key] = value
+        self._append_aof('SET', table, key, value)
         return True
 
-    def get(self, key):
+    def get(self, table, key):
+        if table not in self.data:
+            return None
+            
+        target_data = self.data[table]
+
         if '.' not in key:
-            return self.data.get(key, None)
+            return target_data.get(key, None)
         
-        # Nested access (e.g., "user.profile.name")
+        # Nested access
         parts = key.split('.')
-        current = self.data
+        current = target_data
         for part in parts:
             if isinstance(current, dict) and part in current:
                 current = current[part]
@@ -69,15 +92,17 @@ class Za3bolaEngine:
                 return None
         return current
 
-    def delete(self, key):
-        if key in self.data:
-            del self.data[key]
-            self._append_aof('DEL', key)
+    def delete(self, table, key):
+        if table in self.data and key in self.data[table]:
+            del self.data[table][key]
+            self._append_aof('DEL', table, key)
             return True
         return False
 
-    def list_keys(self):
-        return list(self.data.keys())
+    def list_keys(self, table):
+        if table in self.data:
+            return list(self.data[table].keys())
+        return []
 
-    def get_all(self):
-        return self.data
+    def get_all(self, table):
+        return self.data.get(table, {})

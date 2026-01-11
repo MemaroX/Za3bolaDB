@@ -19,6 +19,7 @@ class Za3bolaServer:
     def handle_client(self, client_socket, addr):
         print(f"[+] New connection from {addr}")
         authenticated = False
+        current_table = 'default' # Default table for new connections
         
         while True:
             try:
@@ -41,7 +42,13 @@ class Za3bolaServer:
                         client_socket.send("ERR: Authentication Required".encode('utf-8'))
                         break
 
-                response = self.process_command(data)
+                # Process Command with Context
+                response, new_table = self.process_command(data, current_table)
+                
+                # Update table if changed
+                if new_table:
+                    current_table = new_table
+                
                 client_socket.send(response.encode('utf-8'))
                 
                 if response == "SERVER_SHUTTING_DOWN":
@@ -54,65 +61,78 @@ class Za3bolaServer:
         print(f"[-] Connection closed from {addr}")
         client_socket.close()
 
-    def process_command(self, command_str):
+    def process_command(self, command_str, current_table):
         parts = command_str.strip().split(' ', 2)
         cmd = parts[0].upper()
 
-        if cmd in ["SET", "ADD", "INSERT"]:
+        # --- USE Command ---
+        if cmd == "USE":
+            if len(parts) < 2:
+                return "ERR: USE requires table name", None
+            new_table_name = parts[1]
+            return f"Switched to table '{new_table_name}'", new_table_name
+
+        # --- SET / ADD / INSERT ---
+        elif cmd in ["SET", "ADD", "INSERT"]:
             if len(parts) < 3:
-                return "ERR: Command requires key and value"
+                return "ERR: Command requires key and value", None
             key, value = parts[1], parts[2]
             
-            # Try to parse value as JSON (for nested objects)
             try:
                 parsed_value = json.loads(value)
-                self.engine.set(key, parsed_value)
+                self.engine.set(current_table, key, parsed_value)
             except json.JSONDecodeError:
-                self.engine.set(key, value)
+                self.engine.set(current_table, key, value)
             
-            return "OK"
+            return "OK", None
         
+        # --- GET ---
         elif cmd == "GET":
             # Check for GET ALL alias
             if len(parts) > 1 and parts[1].upper() == "ALL":
-                return json.dumps(self.engine.get_all())
+                return json.dumps(self.engine.get_all(current_table)), None
             
             if len(parts) < 2:
-                return "ERR: GET requires key"
+                return "ERR: GET requires key", None
             key = parts[1]
-            val = self.engine.get(key)
+            val = self.engine.get(current_table, key)
             if val is None:
-                return "NULL"
+                return "NULL", None
             if isinstance(val, (dict, list)):
-                return json.dumps(val)
-            return str(val)
+                return json.dumps(val), None
+            return str(val), None
         
+        # --- DELETE ---
         elif cmd in ["DELETE", "REMOVE"]:
             if len(parts) < 2:
-                return "ERR: Command requires key"
+                return "ERR: Command requires key", None
             key = parts[1]
-            if self.engine.delete(key):
-                return "OK"
-            return "ERR: Key not found"
+            if self.engine.delete(current_table, key):
+                return "OK", None
+            return "ERR: Key not found", None
         
+        # --- LIST ---
         elif cmd == "LIST":
-            keys = self.engine.list_keys()
-            return ", ".join(keys) if keys else "EMPTY"
+            keys = self.engine.list_keys(current_table)
+            return ", ".join(keys) if keys else "EMPTY", None
         
+        # --- DUMP ---
         elif cmd == "DUMP":
-            return json.dumps(self.engine.get_all())
+            return json.dumps(self.engine.get_all(current_table)), None
         
+        # --- HELP ---
         elif cmd == "HELP":
-            return "COMMANDS: SET/ADD <k> <v>, GET <k>, GET ALL/DUMP, DELETE/REMOVE <k>, LIST, SHUTDOWN, EXIT"
+            return "COMMANDS: USE <table>, SET <k> <v>, GET <k>, GET ALL, DELETE <k>, LIST, SHUTDOWN", None
         
+        # --- SYSTEM ---
         elif cmd == "SHUTDOWN":
             self.running = False
-            return "SERVER_SHUTTING_DOWN"
+            return "SERVER_SHUTTING_DOWN", None
         
         elif cmd == "EXIT":
-            return "BYE"
+            return "BYE", None
             
-        return "ERR: Unknown command. Type HELP for options."
+        return "ERR: Unknown command. Type HELP for options.", None
 
     def run(self):
         self.server_socket.listen(5)
@@ -135,10 +155,9 @@ class Za3bolaServer:
 
 def kill_process_on_port(port):
     print(f"[*] Attempting to terminate process on port {port}...")
-    # PowerShell command to find and kill the process owning the port
     ps_cmd = f"Get-NetTCPConnection -LocalPort {port} -ErrorAction SilentlyContinue | ForEach-Object {{ Stop-Process -Id $_.OwningProcess -Force }}"
     subprocess.run(["powershell", "-NoProfile", "-Command", ps_cmd], capture_output=True)
-    time.sleep(1) # Allow OS time to release the port
+    time.sleep(1)
 
 if __name__ == "__main__":
     HOST = '127.0.0.1'
@@ -148,7 +167,7 @@ if __name__ == "__main__":
         server = Za3bolaServer(host=HOST, port=PORT)
         server.run()
     except OSError as e:
-        if e.errno == 10048: # WinError: Address already in use
+        if e.errno == 10048:
             print(f"[!] Port {PORT} is already in use.")
             try:
                 choice = input("Do you want to terminate the existing server and restart? (y/n): ").strip().lower()
