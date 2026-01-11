@@ -10,5 +10,6 @@ venv/
 env.bak/
 venv.bak/
 data.json
+*.aof
 .vscode/
 .idea/
