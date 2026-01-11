@@ -90,7 +90,8 @@ class Za3bolaServer:
         elif cmd == "GET":
             # Check for GET ALL alias
             if len(parts) > 1 and parts[1].upper() == "ALL":
-                return json.dumps(self.engine.get_all(current_table)), None
+                target_table = parts[2] if len(parts) > 2 else current_table
+                return json.dumps(self.engine.get_all(target_table)), None
             
             if len(parts) < 2:
                 return "ERR: GET requires key", None
@@ -113,16 +114,23 @@ class Za3bolaServer:
         
         # --- LIST ---
         elif cmd == "LIST":
-            keys = self.engine.list_keys(current_table)
+            target_table = parts[1] if len(parts) > 1 else current_table
+            keys = self.engine.list_keys(target_table)
             return ", ".join(keys) if keys else "EMPTY", None
+        
+        # --- TABLES ---
+        elif cmd == "TABLES":
+            tables = self.engine.list_tables()
+            return ", ".join(tables) if tables else "EMPTY", None
         
         # --- DUMP ---
         elif cmd == "DUMP":
-            return json.dumps(self.engine.get_all(current_table)), None
+            target_table = parts[1] if len(parts) > 1 else current_table
+            return json.dumps(self.engine.get_all(target_table)), None
         
         # --- HELP ---
         elif cmd == "HELP":
-            return "COMMANDS: USE <table>, SET <k> <v>, GET <k>, GET ALL, DELETE <k>, LIST, SHUTDOWN", None
+            return "COMMANDS: USE <table>, TABLES, SET <k> <v>, GET <k>, GET ALL [t], DUMP [t], DELETE <k>, LIST [t], SHUTDOWN", None
         
         # --- SYSTEM ---
         elif cmd == "SHUTDOWN":

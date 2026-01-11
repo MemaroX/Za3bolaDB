@@ -106,3 +106,6 @@ class Za3bolaEngine:
 
     def get_all(self, table):
         return self.data.get(table, {})
+
+    def list_tables(self):
+        return list(self.data.keys())
