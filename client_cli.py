@@ -7,6 +7,18 @@ def run_client(host='127.0.0.1', port=8090):
     try:
         client_socket.connect((host, port))
         print(f"[*] Connected to Za3bolaDB at {host}:{port}")
+        
+        # Authentication
+        pwd = input("Password: ")
+        client_socket.send(f"AUTH {pwd}".encode('utf-8'))
+        auth_response = client_socket.recv(4096).decode('utf-8')
+        
+        if auth_response != "OK":
+            print(f"[-] Authentication failed: {auth_response}")
+            client_socket.close()
+            return
+
+        print("[+] Authentication successful.")
         print("Type 'EXIT' to quit.")
         
         while True:
