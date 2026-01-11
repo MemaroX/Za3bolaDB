@@ -14,9 +14,9 @@ class Za3bolaServer:
         self.password = password
         self.engine = Za3bolaEngine()
         
-        # SSL Context Setup (Disabled for BanditEDITS)
-        # self.context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-        # self.context.load_cert_chain(certfile="server.crt", keyfile="server.key")
+        # SSL Context Setup
+        self.context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+        self.context.load_cert_chain(certfile="server.crt", keyfile="server.key")
         
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server_socket.bind((self.host, self.port))
@@ -164,8 +164,16 @@ class Za3bolaServer:
             while self.running:
                 try:
                     client_socket, addr = self.server_socket.accept()
-                    client_thread = threading.Thread(target=self.handle_client, args=(client_socket, addr))
-                    client_thread.start()
+                    
+                    # Wrap with SSL
+                    try:
+                        secure_socket = self.context.wrap_socket(client_socket, server_side=True)
+                        client_thread = threading.Thread(target=self.handle_client, args=(secure_socket, addr))
+                        client_thread.start()
+                    except ssl.SSLError as e:
+                        print(f"[!] SSL Handshake failed: {e}")
+                        client_socket.close()
+                        
                 except socket.timeout:
                     continue
         except Exception as e:
