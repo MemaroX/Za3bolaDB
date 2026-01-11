@@ -73,6 +73,10 @@ class Za3bolaServer:
             return "OK"
         
         elif cmd == "GET":
+            # Check for GET ALL alias
+            if len(parts) > 1 and parts[1].upper() == "ALL":
+                return json.dumps(self.engine.get_all())
+            
             if len(parts) < 2:
                 return "ERR: GET requires key"
             key = parts[1]
@@ -95,8 +99,11 @@ class Za3bolaServer:
             keys = self.engine.list_keys()
             return ", ".join(keys) if keys else "EMPTY"
         
+        elif cmd == "DUMP":
+            return json.dumps(self.engine.get_all())
+        
         elif cmd == "HELP":
-            return "COMMANDS: SET/ADD <k> <v>, GET <k>, DELETE/REMOVE <k>, LIST, SHUTDOWN, EXIT"
+            return "COMMANDS: SET/ADD <k> <v>, GET <k>, GET ALL/DUMP, DELETE/REMOVE <k>, LIST, SHUTDOWN, EXIT"
         
         elif cmd == "SHUTDOWN":
             self.running = False

@@ -54,6 +54,20 @@ class TestServerLogic(unittest.TestCase):
         response = self.server.process_command("LIST")
         self.assertTrue("k1" in response and "k2" in response)
 
+    def test_process_dump(self):
+        self.server.engine.set("u1", "Maher")
+        self.server.engine.set("u2", "Stark")
+        
+        # Test DUMP
+        response = self.server.process_command("DUMP")
+        data = json.loads(response)
+        self.assertEqual(data['u1'], "Maher")
+        self.assertEqual(data['u2'], "Stark")
+
+        # Test GET ALL alias
+        response_alias = self.server.process_command("GET ALL")
+        self.assertEqual(response, response_alias)
+
     def test_process_invalid_command(self):
         response = self.server.process_command("DANCE")
         self.assertEqual(response, "ERR: Unknown command. Type HELP for options.")

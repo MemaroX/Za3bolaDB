@@ -78,3 +78,6 @@ class Za3bolaEngine:
 
     def list_keys(self):
         return list(self.data.keys())
+
+    def get_all(self):
+        return self.data
