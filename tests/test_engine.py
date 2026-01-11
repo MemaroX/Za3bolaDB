@@ -39,6 +39,23 @@ class TestZa3bolaEngine(unittest.TestCase):
         self.assertIn('b', keys)
         self.assertEqual(len(keys), 2)
 
+    def test_nested_get(self):
+        # Test Dot Notation
+        data = {'user': {'profile': {'age': 30, 'city': 'NY'}}}
+        self.engine.set('data', data)
+        
+        # Deep retrieval
+        self.assertEqual(self.engine.get('data.user.profile.age'), 30)
+        
+        # Middle retrieval
+        self.assertEqual(self.engine.get('data.user.profile'), {'age': 30, 'city': 'NY'})
+        
+        # Missing nested key
+        self.assertIsNone(self.engine.get('data.user.profile.gender'))
+        
+        # Breaking the path (trying to go deep into a non-dict)
+        self.assertIsNone(self.engine.get('data.user.profile.age.something'))
+
     def test_persistence(self):
         self.engine.set('persistent', 'value')
         # Create a new engine instance pointing to same file

@@ -1,6 +1,7 @@
 import unittest
 import sys
 import os
+import json
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -8,10 +9,25 @@ from server import Za3bolaServer
 
 class TestServerLogic(unittest.TestCase):
     def setUp(self):
-        # Initialize server with a dummy port, we won't actually bind in this test
-        self.server = Za3bolaServer(port=9999)
+        # Initialize server with port 0 (OS chooses free port) to avoid conflicts
+        self.server = Za3bolaServer(port=0)
         # Manually clear engine data to keep tests isolated
         self.server.engine.data = {} 
+
+    def test_json_handling(self):
+        # Test INSERT with JSON
+        json_str = '{"hero": "IronMan", "power": 100}'
+        response = self.server.process_command(f"INSERT avenger {json_str}")
+        self.assertEqual(response, "OK")
+        
+        # Verify it is stored as a dict in engine
+        stored_val = self.server.engine.get("avenger")
+        self.assertIsInstance(stored_val, dict)
+        self.assertEqual(stored_val['hero'], "IronMan")
+
+        # Test GET returns JSON string
+        response = self.server.process_command("GET avenger")
+        self.assertEqual(json.loads(response), json.loads(json_str))
 
     def test_process_set(self):
         response = self.server.process_command("SET name Za3bola")
@@ -40,7 +56,7 @@ class TestServerLogic(unittest.TestCase):
 
     def test_process_invalid_command(self):
         response = self.server.process_command("DANCE")
-        self.assertEqual(response, "ERR: Unknown command")
+        self.assertEqual(response, "ERR: Unknown command. Type HELP for options.")
 
 if __name__ == '__main__':
     unittest.main()
