@@ -4,6 +4,7 @@ import json
 import sys
 import subprocess
 import time
+import ssl
 from engine import Za3bolaEngine
 
 class Za3bolaServer:
@@ -12,6 +13,11 @@ class Za3bolaServer:
         self.port = port
         self.password = password
         self.engine = Za3bolaEngine()
+        
+        # SSL Context Setup
+        self.context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+        self.context.load_cert_chain(certfile="server.crt", keyfile="server.key")
+        
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server_socket.bind((self.host, self.port))
         self.running = True
@@ -145,14 +151,22 @@ class Za3bolaServer:
     def run(self):
         self.server_socket.listen(5)
         self.server_socket.settimeout(1.0)
-        print(f"[*] Za3bolaDB Server listening on {self.host}:{self.port}")
+        print(f"[*] Za3bolaDB Server (SECURE) listening on {self.host}:{self.port}")
         
         try:
             while self.running:
                 try:
                     client_socket, addr = self.server_socket.accept()
-                    client_thread = threading.Thread(target=self.handle_client, args=(client_socket, addr))
-                    client_thread.start()
+                    
+                    # Wrap with SSL
+                    try:
+                        secure_socket = self.context.wrap_socket(client_socket, server_side=True)
+                        client_thread = threading.Thread(target=self.handle_client, args=(secure_socket, addr))
+                        client_thread.start()
+                    except ssl.SSLError as e:
+                        print(f"[!] SSL Handshake failed: {e}")
+                        client_socket.close()
+                        
                 except socket.timeout:
                     continue
         except KeyboardInterrupt:
