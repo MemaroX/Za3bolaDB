@@ -1,5 +1,6 @@
 import socket
 import threading
+import json
 from engine import Za3bolaEngine
 
 class Za3bolaServer:
@@ -58,7 +59,14 @@ class Za3bolaServer:
             if len(parts) < 3:
                 return "ERR: Command requires key and value"
             key, value = parts[1], parts[2]
-            self.engine.set(key, value)
+            
+            # Try to parse value as JSON (for nested objects)
+            try:
+                parsed_value = json.loads(value)
+                self.engine.set(key, parsed_value)
+            except json.JSONDecodeError:
+                self.engine.set(key, value)
+            
             return "OK"
         
         elif cmd == "GET":
@@ -66,7 +74,11 @@ class Za3bolaServer:
                 return "ERR: GET requires key"
             key = parts[1]
             val = self.engine.get(key)
-            return str(val) if val is not None else "NULL"
+            if val is None:
+                return "NULL"
+            if isinstance(val, (dict, list)):
+                return json.dumps(val)
+            return str(val)
         
         elif cmd in ["DELETE", "REMOVE"]:
             if len(parts) < 2:

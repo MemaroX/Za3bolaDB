@@ -25,7 +25,18 @@ class Za3bolaEngine:
         return True
 
     def get(self, key):
-        return self.data.get(key, None)
+        if '.' not in key:
+            return self.data.get(key, None)
+        
+        # Nested access (e.g., "user.profile.name")
+        parts = key.split('.')
+        current = self.data
+        for part in parts:
+            if isinstance(current, dict) and part in current:
+                current = current[part]
+            else:
+                return None
+        return current
 
     def delete(self, key):
         if key in self.data:
