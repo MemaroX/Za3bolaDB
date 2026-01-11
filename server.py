@@ -1,6 +1,9 @@
 import socket
 import threading
 import json
+import sys
+import subprocess
+import time
 from engine import Za3bolaEngine
 
 class Za3bolaServer:
@@ -123,6 +126,36 @@ class Za3bolaServer:
             print("[*] Server stopped.")
             self.server_socket.close()
 
+def kill_process_on_port(port):
+    print(f"[*] Attempting to terminate process on port {port}...")
+    # PowerShell command to find and kill the process owning the port
+    ps_cmd = f"Get-NetTCPConnection -LocalPort {port} -ErrorAction SilentlyContinue | ForEach-Object {{ Stop-Process -Id $_.OwningProcess -Force }}"
+    subprocess.run(["powershell", "-NoProfile", "-Command", ps_cmd], capture_output=True)
+    time.sleep(1) # Allow OS time to release the port
+
 if __name__ == "__main__":
-    server = Za3bolaServer()
-    server.run()
+    HOST = '127.0.0.1'
+    PORT = 8090
+    
+    try:
+        server = Za3bolaServer(host=HOST, port=PORT)
+        server.run()
+    except OSError as e:
+        if e.errno == 10048: # WinError: Address already in use
+            print(f"[!] Port {PORT} is already in use.")
+            try:
+                choice = input("Do you want to terminate the existing server and restart? (y/n): ").strip().lower()
+                if choice == 'y':
+                    kill_process_on_port(PORT)
+                    try:
+                        print("[*] Restarting server...")
+                        server = Za3bolaServer(host=HOST, port=PORT)
+                        server.run()
+                    except Exception as err:
+                        print(f"[!] Failed to restart server: {err}")
+                else:
+                    print("[*] Startup aborted.")
+            except KeyboardInterrupt:
+                print("\n[*] Aborted.")
+        else:
+            raise e

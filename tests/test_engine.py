@@ -10,7 +10,7 @@ from engine import Za3bolaEngine
 
 class TestZa3bolaEngine(unittest.TestCase):
     def setUp(self):
-        self.test_db_path = 'test_data.json'
+        self.test_db_path = 'test_data.aof'
         # Ensure we start fresh
         if os.path.exists(self.test_db_path):
             os.remove(self.test_db_path)
@@ -58,7 +58,7 @@ class TestZa3bolaEngine(unittest.TestCase):
 
     def test_persistence(self):
         self.engine.set('persistent', 'value')
-        # Create a new engine instance pointing to same file
+        # Create a new engine instance pointing to same file to trigger recovery
         new_engine = Za3bolaEngine(db_path=self.test_db_path)
         self.assertEqual(new_engine.get('persistent'), 'value')
 

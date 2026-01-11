@@ -30,7 +30,7 @@ def run_client(host='127.0.0.1', port=8090):
             response = client_socket.recv(4096).decode('utf-8')
             print(response)
             
-            if cmd.upper() == "EXIT" or response == "BYE":
+            if cmd.upper() == "EXIT" or response == "BYE" or response == "SERVER_SHUTTING_DOWN":
                 break
                 
     except ConnectionRefusedError:
