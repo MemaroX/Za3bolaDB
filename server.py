@@ -14,9 +14,9 @@ class Za3bolaServer:
         self.password = password
         self.engine = Za3bolaEngine()
         
-        # SSL Context Setup
-        self.context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-        self.context.load_cert_chain(certfile="server.crt", keyfile="server.key")
+        # SSL Context Setup (Disabled for BanditEDITS)
+        # self.context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+        # self.context.load_cert_chain(certfile="server.crt", keyfile="server.key")
         
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server_socket.bind((self.host, self.port))
@@ -148,32 +148,42 @@ class Za3bolaServer:
             
         return "ERR: Unknown command. Type HELP for options.", None
 
-    def run(self):
+    def start(self):
+        """Starts the server in a background thread."""
         self.server_socket.listen(5)
         self.server_socket.settimeout(1.0)
-        print(f"[*] Za3bolaDB Server (SECURE) listening on {self.host}:{self.port}")
+        print(f"[*] Za3bolaDB Server listening on {self.host}:{self.port}")
         
+        self.server_thread = threading.Thread(target=self._accept_loop)
+        self.server_thread.daemon = True # Ensure thread dies if main program exits
+        self.server_thread.start()
+
+    def _accept_loop(self):
+        """The main loop that accepts connections."""
         try:
             while self.running:
                 try:
                     client_socket, addr = self.server_socket.accept()
-                    
-                    # Wrap with SSL
-                    try:
-                        secure_socket = self.context.wrap_socket(client_socket, server_side=True)
-                        client_thread = threading.Thread(target=self.handle_client, args=(secure_socket, addr))
-                        client_thread.start()
-                    except ssl.SSLError as e:
-                        print(f"[!] SSL Handshake failed: {e}")
-                        client_socket.close()
-                        
+                    client_thread = threading.Thread(target=self.handle_client, args=(client_socket, addr))
+                    client_thread.start()
                 except socket.timeout:
                     continue
+        except Exception as e:
+            print(f"[!] Server Error: {e}")
+        finally:
+            self.server_socket.close()
+            print("[*] Server stopped.")
+
+    def run(self):
+        """Blocking method to run the server."""
+        self.start()
+        try:
+            while self.running:
+                time.sleep(1)
         except KeyboardInterrupt:
             print("\n[*] Shutting down server...")
-        finally:
-            print("[*] Server stopped.")
-            self.server_socket.close()
+            self.running = False
+            self.server_thread.join()
 
 def kill_process_on_port(port):
     print(f"[*] Attempting to terminate process on port {port}...")

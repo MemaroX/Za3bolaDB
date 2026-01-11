@@ -14,45 +14,54 @@ class Za3bolaEngine:
             return
 
         print("[*] Replaying AOF log...")
+        valid_lines = 0
+        corrupt_lines = 0
+        
         try:
             with open(self.db_path, 'r', encoding='utf-8') as f:
-                for line in f:
+                for i, line in enumerate(f):
                     line = line.strip()
                     if not line: continue
                     
                     try:
-                        # Try parsing new format: CMD TABLE KEY VALUE
-                        parts = line.split(' ', 3)
+                        self._process_aof_line(line)
+                        valid_lines += 1
+                    except (ValueError, IndexError, json.JSONDecodeError) as e:
+                        print(f"[!] Warning: Corrupt AOF line {i+1}: {e}")
+                        corrupt_lines += 1
                         
-                        if len(parts) == 4 and parts[0] == 'SET':
-                            # New Format: SET table key value
-                            cmd, table, key, val_json = parts
-                            if table not in self.data: self.data[table] = {}
-                            self.data[table][key] = json.loads(val_json)
-                            
-                        elif len(parts) == 3 and parts[0] == 'DEL':
-                            # New Format: DEL table key
-                            cmd, table, key = parts
-                            if table in self.data and key in self.data[table]:
-                                del self.data[table][key]
-
-                        # Legacy Format Handling (Backward Compatibility)
-                        elif len(parts) == 3 and parts[0] == 'SET':
-                            # Old Format: SET key value (assume 'default')
-                            cmd, key, val_json = parts
-                            self.data['default'][key] = json.loads(val_json)
-                        
-                        elif len(parts) == 2 and parts[0] == 'DEL':
-                             # Old Format: DEL key
-                            cmd, key = parts
-                            if key in self.data['default']:
-                                del self.data['default'][key]
-
-                    except Exception:
-                        continue # Skip corrupted lines
         except Exception as e:
-            print(f"[!] Error recovering AOF: {e}")
-        print("[*] Recovery complete.")
+            print(f"[!] Critical Error recovering AOF: {e}")
+            
+        print(f"[*] Recovery complete. {valid_lines} valid, {corrupt_lines} corrupt.")
+
+    def _process_aof_line(self, line):
+        """Helper to parse a single AOF line."""
+        parts = line.split(' ', 3)
+        
+        # New Format: CMD TABLE KEY [VALUE]
+        if len(parts) >= 3:
+            cmd = parts[0]
+            
+            if cmd == 'SET' and len(parts) == 4:
+                _, table, key, val_json = parts
+                if table not in self.data: self.data[table] = {}
+                self.data[table][key] = json.loads(val_json)
+                
+            elif cmd == 'DEL':
+                _, table, key = parts[:3]
+                if table in self.data and key in self.data[table]:
+                    del self.data[table][key]
+                    
+            # Legacy Format Support (CMD KEY [VALUE]) - assumes 'default' table
+            elif cmd == 'SET' and len(parts) == 3:
+                 _, key, val_json = parts
+                 self.data['default'][key] = json.loads(val_json)
+                 
+            elif cmd == 'DEL' and len(parts) == 2:
+                _, key = parts
+                if key in self.data['default']:
+                    del self.data['default'][key]
 
     def _append_aof(self, cmd, table, key, value=None):
         """Appends a command to the log file."""
