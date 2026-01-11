@@ -8,7 +8,7 @@ import ssl
 from engine import Za3bolaEngine
 
 class Za3bolaServer:
-    def __init__(self, host='127.0.0.1', port=8090, password='admin'):
+    def __init__(self, host='127.0.0.1', port=8090, password='admin', certfile="server.crt", keyfile="server.key"):
         self.host = host
         self.port = port
         self.password = password
@@ -16,7 +16,7 @@ class Za3bolaServer:
         
         # SSL Context Setup
         self.context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-        self.context.load_cert_chain(certfile="server.crt", keyfile="server.key")
+        self.context.load_cert_chain(certfile=certfile, keyfile=keyfile)
         
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server_socket.bind((self.host, self.port))

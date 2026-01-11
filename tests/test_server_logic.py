@@ -6,11 +6,16 @@ import json
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from server import Za3bolaServer
+from tests.cert_helper import generate_test_certs, cleanup_test_certs
 
 class TestServerLogic(unittest.TestCase):
     def setUp(self):
-        self.server = Za3bolaServer(port=0)
+        self.cert, self.key = generate_test_certs()
+        self.server = Za3bolaServer(port=0, certfile=self.cert, keyfile=self.key)
         self.server.engine.data = {'default': {}} 
+
+    def tearDown(self):
+        cleanup_test_certs(self.cert, self.key)
 
     def test_use_command(self):
         # Default start
